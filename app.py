@@ -597,14 +597,15 @@ try:
                     elif expiry_status == 'warning':
                         expiry_html = f'<div class="expiry-warning">期限まであと{(datetime.strptime(str(expiry), "%Y-%m-%d") - datetime.now()).days}日</div>'
                     
-                    progress_bar_html = f'<div class="progress-bar"><div class="progress-fill {progress_class}" style="width: {min(stock_ratio, 100)}%"></div></div>'
-                    
+                    # プログレスバーを含めて全部直接書く
                     st.markdown(f"""
                     <div class="item-row-inline">
                         <div class="item-name">{icon} {category_badge}{row['項目名']}</div>
                         <div class="item-stock">在庫: {current_stock}個 / 在庫下限: {threshold}個</div>
                         {expiry_html}
-                        {progress_bar_html}
+                        <div class="progress-bar">
+                            <div class="progress-fill {progress_class}" style="width: {min(stock_ratio, 100)}%"></div>
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
                 
