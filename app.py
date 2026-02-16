@@ -4,7 +4,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from google.cloud import vision
 import io
-import base64
+from datetime import datetime, timedelta
+import re
 
 # ページの設定
 st.set_page_config(
@@ -13,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# シンプルでスッキリしたCSS
+# パステルカラーとスタイリッシュなCSS
 st.markdown("""
 <style>
     /* Streamlitのヘッダーとフッターを非表示 */
@@ -70,6 +71,13 @@ st.markdown("""
     }
     
     /* 統計カード */
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+    
     .stat-card {
         background: white;
         padding: 0.75rem;
@@ -96,13 +104,29 @@ st.markdown("""
     .stat-warning { color: #f59e0b; }
     .stat-danger { color: #ef4444; }
     
-    /* アイテムカード - 横並びレイアウト */
+    /* カテゴリバッジ - パステルカラー */
+    .category-badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+    
+    .category-食料品 { background-color: #D4EDDA; color: #155724; }
+    .category-日用品 { background-color: #D1ECF1; color: #0C5460; }
+    .category-ベビー用品 { background-color: #F8D7DA; color: #721C24; }
+    .category-調味料 { background-color: #FFF3CD; color: #856404; }
+    
+    /* アイテムカード */
     .item-row-inline {
         background: white;
         border-radius: 10px;
         padding: 0.85rem 1rem;
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         border: 1px solid #e5e7eb;
+        margin-bottom: 0.5rem;
     }
     
     .item-name {
@@ -116,6 +140,38 @@ st.markdown("""
         font-size: 0.7rem;
         color: #6b7280;
     }
+    
+    .expiry-alert {
+        font-size: 0.7rem;
+        color: #dc3545;
+        font-weight: 600;
+    }
+    
+    .expiry-warning {
+        font-size: 0.7rem;
+        color: #f59e0b;
+        font-weight: 600;
+    }
+    
+    /* プログレスバー */
+    .progress-bar {
+        width: 100%;
+        height: 6px;
+        background-color: #e5e7eb;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 0.3rem;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+        border-radius: 3px;
+    }
+    
+    .progress-high { background: linear-gradient(90deg, #A8E6CF, #88D8B0); }
+    .progress-medium { background: linear-gradient(90deg, #FFD3B6, #FFAAA5); }
+    .progress-low { background: linear-gradient(90deg, #FFAAA5, #FF8B94); }
     
     /* カラム間の余白を調整 */
     div[data-testid="column"] {
@@ -145,25 +201,16 @@ st.markdown("""
     
     /* ボタン調整 */
     .stButton > button {
-        border-radius: 6px;
+        border-radius: 8px;
         font-weight: 600;
-        font-size: 1rem;
-        padding: 0.4rem 0.8rem;
-        border: 1px solid #d1d5db;
-        background-color: white;
-        color: #374151;
-        transition: all 0.15s;
-        min-width: 40px;
-        height: 38px;
-    }
-    
-    .stButton > button:hover {
-        background-color: #f9fafb;
-        border-color: #9ca3af;
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
+        border: none;
+        transition: all 0.2s;
     }
     
     .stButton > button:active {
-        transform: scale(0.96);
+        transform: scale(0.95);
     }
     
     /* タブのスタイル改善 */
@@ -231,9 +278,18 @@ st.markdown("""
         margin-top: 0.2rem;
     }
     
-    /* フィルターボタンのスタイル */
-    div[data-testid="stHorizontalBlock"] {
-        gap: 0.5rem;
+    .manual-item {
+        background: #E3F2FD;
+        border: 1px solid #90CAF9;
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .manual-item-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #1565C0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -276,13 +332,17 @@ def load_data(sheet):
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         
-        # カテゴリー列がない場合は空文字で埋める
-        if 'カテゴリ' not in df.columns:
-            df['カテゴリ'] = ''
+        # 必要な列を確保
+        required_columns = ['アイコン', '項目名', 'カテゴリ', '在庫数', '予備数', '補充しきい値', '賞味期限']
+        for col in required_columns:
+            if col not in df.columns:
+                df[col] = ''
         
+        # 数値型に変換
         df['在庫数'] = pd.to_numeric(df['在庫数'], errors='coerce').fillna(0).astype(int)
         df['予備数'] = pd.to_numeric(df['予備数'], errors='coerce').fillna(0).astype(int)
         df['補充しきい値'] = pd.to_numeric(df['補充しきい値'], errors='coerce').fillna(0).astype(int)
+        
         return df
     except Exception as e:
         st.error(f"データ読み込みエラー: {e}")
@@ -302,25 +362,15 @@ def update_data(sheet, df):
 def detect_text_from_image(image_bytes):
     """レシート画像からテキストを抽出"""
     try:
-        # APIキーで認証
         api_key = st.secrets["google_vision"]["api_key"]
+        client = vision.ImageAnnotatorClient(client_options={"api_key": api_key})
         
-        # Vision APIクライアントを作成(APIキー使用)
-        client = vision.ImageAnnotatorClient(
-            client_options={"api_key": api_key}
-        )
-        
-        # 画像を読み込む
         image = vision.Image(content=image_bytes)
-        
-        # テキスト検出
         response = client.text_detection(image=image)
         texts = response.text_annotations
         
         if texts:
-            # 最初のアノテーションに全テキストが入っている
-            full_text = texts[0].description
-            return full_text
+            return texts[0].description
         else:
             return ""
     except Exception as e:
@@ -331,8 +381,6 @@ def parse_receipt_text(text, df):
     """レシートのテキストから商品を抽出"""
     detected_items = []
     lines = text.split('\n')
-    
-    # 登録されている商品名のリスト
     registered_items = df['項目名'].tolist()
     
     for line in lines:
@@ -340,40 +388,46 @@ def parse_receipt_text(text, df):
         if not line:
             continue
         
-        # 登録商品名が含まれているかチェック
         for item_name in registered_items:
             if item_name in line:
-                # 数量を探す(数字を探す)
-                import re
                 numbers = re.findall(r'\d+', line)
                 quantity = int(numbers[0]) if numbers else 1
                 
-                # 既に追加済みかチェック
                 if not any(d['name'] == item_name for d in detected_items):
-                    detected_items.append({
-                        'name': item_name,
-                        'quantity': quantity
-                    })
+                    detected_items.append({'name': item_name, 'quantity': quantity})
                 break
-        
-        # 部分一致も試す
-        for item_name in registered_items:
-            if any(char in line for char in item_name) and len(item_name) >= 2:
-                # すでに見つかっていない場合のみ
-                if not any(d['name'] == item_name for d in detected_items):
-                    import re
-                    numbers = re.findall(r'\d+', line)
-                    quantity = int(numbers[0]) if numbers else 1
-                    
-                    detected_items.append({
-                        'name': item_name,
-                        'quantity': quantity
-                    })
-                    break
     
     return detected_items
 
-# コンパクトなヘッダー
+def check_expiry_status(expiry_date):
+    """賞味期限のステータスをチェック"""
+    if not expiry_date or expiry_date == '':
+        return None
+    
+    try:
+        expiry = datetime.strptime(str(expiry_date), '%Y-%m-%d')
+        today = datetime.now()
+        days_left = (expiry - today).days
+        
+        if days_left < 0:
+            return 'expired'
+        elif days_left <= 3:
+            return 'critical'
+        elif days_left <= 7:
+            return 'warning'
+        else:
+            return 'ok'
+    except:
+        return None
+
+# セッション状態の初期化
+if 'manual_shopping_list' not in st.session_state:
+    st.session_state.manual_shopping_list = []
+
+if 'low_stock_items' not in st.session_state:
+    st.session_state.low_stock_items = []
+
+# ヘッダー
 st.markdown("""
 <div class="app-header">
     <div class="app-title">🏠 おうち在庫管理システム</div>
@@ -424,42 +478,78 @@ try:
     
     # タブ1: 在庫一覧
     with tab1:
+        # 新規追加ボタン
+        if st.button("➕ 新しいアイテムを追加", use_container_width=True):
+            st.session_state.show_add_form = True
+        
+        # 新規追加フォーム
+        if st.session_state.get('show_add_form', False):
+            with st.form("add_item_form"):
+                st.markdown("### 新しいアイテムを追加")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_icon = st.text_input("アイコン(絵文字)", placeholder="🍶")
+                    new_name = st.text_input("項目名", placeholder="醤油")
+                    new_category = st.text_input("カテゴリ", placeholder="調味料")
+                
+                with col2:
+                    new_stock = st.number_input("在庫数", min_value=0, value=0)
+                    new_threshold = st.number_input("在庫下限", min_value=0, value=1)
+                    new_expiry = st.text_input("賞味期限(YYYY-MM-DD)", placeholder="2026-12-31")
+                
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    submit = st.form_submit_button("追加", use_container_width=True)
+                with col_btn2:
+                    cancel = st.form_submit_button("キャンセル", use_container_width=True)
+                
+                if submit and new_name:
+                    new_row = {
+                        'アイコン': new_icon,
+                        '項目名': new_name,
+                        'カテゴリ': new_category,
+                        '在庫数': new_stock,
+                        '予備数': new_stock,
+                        '補充しきい値': new_threshold,
+                        '賞味期限': new_expiry
+                    }
+                    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                    if update_data(sheet, df):
+                        st.success(f"✓ {new_name}を追加しました!")
+                        st.session_state.show_add_form = False
+                        st.rerun()
+                
+                if cancel:
+                    st.session_state.show_add_form = False
+                    st.rerun()
+        
+        st.divider()
+        
         # 検索バーとフィルター
         search_query = st.text_input("🔍 検索", placeholder="項目名で検索...", label_visibility="collapsed")
         
         col_filter1, col_filter2 = st.columns(2)
         
         with col_filter1:
-            # カテゴリーフィルター
             categories = ['すべて'] + sorted(df['カテゴリ'].unique().tolist())
-            category_filter = st.selectbox(
-                "カテゴリー",
-                categories,
-                label_visibility="collapsed",
-                key="category_filter"
-            )
+            category_filter = st.selectbox("カテゴリー", categories, label_visibility="collapsed", key="category_filter")
         
         with col_filter2:
-            # ステータスフィルター
-            filter_option = st.radio(
-                "表示",
-                ["すべて", "要補充", "在庫OK"],
-                horizontal=True,
-                label_visibility="collapsed"
-            )
+            filter_option = st.radio("表示", ["すべて", "要補充", "在庫OK"], horizontal=True, label_visibility="collapsed")
         
         # フィルター適用
         display_df = df.copy()
         
-        # 検索フィルター
+        # カテゴリ順にソート
+        display_df = display_df.sort_values('カテゴリ')
+        
         if search_query:
             display_df = display_df[display_df['項目名'].str.contains(search_query, case=False, na=False)]
         
-        # カテゴリーフィルター
         if category_filter != 'すべて':
             display_df = display_df[display_df['カテゴリ'] == category_filter]
         
-        # ステータスフィルター
         if filter_option == "要補充":
             display_df = display_df[display_df['予備数'] < display_df['補充しきい値']]
         elif filter_option == "在庫OK":
@@ -471,26 +561,67 @@ try:
             for index, row in display_df.iterrows():
                 current_stock = int(row['予備数'])
                 threshold = int(row['補充しきい値'])
+                icon = row.get('アイコン', '')
+                category = row.get('カテゴリ', '')
+                expiry = row.get('賞味期限', '')
                 
-                # 完全横並びレイアウト: 項目名 | ➖ | ➕
-                col1, col2, col3 = st.columns([5, 1, 1])
+                # 在庫率を計算
+                if threshold > 0:
+                    stock_ratio = (current_stock / threshold) * 100
+                else:
+                    stock_ratio = 100
+                
+                # プログレスバーの色
+                if stock_ratio >= 100:
+                    progress_class = "progress-high"
+                elif stock_ratio >= 50:
+                    progress_class = "progress-medium"
+                else:
+                    progress_class = "progress-low"
+                
+                # 賞味期限チェック
+                expiry_status = check_expiry_status(expiry) if category == '食料品' else None
+                
+                # 横並びレイアウト
+                col1, col2, col3, col4 = st.columns([5, 1, 1, 1])
                 
                 with col1:
-                    category_badge = f'<span style="background: #e5e7eb; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.65rem; color: #6b7280; margin-right: 0.3rem;">{row["カテゴリ"]}</span>' if row.get('カテゴリ', '') else ''
+                    category_class = f"category-{category}" if category else ""
+                    category_badge = f'<span class="category-badge {category_class}">{category}</span>' if category else ''
+                    
+                    expiry_html = ""
+                    if expiry_status == 'expired':
+                        expiry_html = f'<div class="expiry-alert">⚠️ 期限切れ</div>'
+                    elif expiry_status == 'critical':
+                        expiry_html = f'<div class="expiry-alert">⚠️ 期限まであと{(datetime.strptime(str(expiry), "%Y-%m-%d") - datetime.now()).days}日</div>'
+                    elif expiry_status == 'warning':
+                        expiry_html = f'<div class="expiry-warning">期限まであと{(datetime.strptime(str(expiry), "%Y-%m-%d") - datetime.now()).days}日</div>'
+                    
                     st.markdown(f"""
                     <div class="item-row-inline">
-                        <div class="item-name">{category_badge}{row['項目名']}</div>
+                        <div class="item-name">{icon} {category_badge}{row['項目名']}</div>
                         <div class="item-stock">在庫: {current_stock}個 / 在庫下限: {threshold}個</div>
+                        {expiry_html}
+                        <div class="progress-bar">
+                            <div class="progress-fill {progress_class}" style="width: {min(stock_ratio, 100)}%"></div>
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
                 
                 with col2:
+                    if st.button("⚠️", key=f"low_{index}", use_container_width=True, help="残りわずか"):
+                        if row['項目名'] not in st.session_state.low_stock_items:
+                            st.session_state.low_stock_items.append(row['項目名'])
+                            st.success("買うものリストに追加!")
+                            st.rerun()
+                
+                with col3:
                     if st.button("➖", key=f"minus_{index}", use_container_width=True):
                         df.at[index, '予備数'] = max(0, current_stock - 1)
                         if update_data(sheet, df):
                             st.rerun()
                 
-                with col3:
+                with col4:
                     if st.button("➕", key=f"plus_{index}", use_container_width=True):
                         df.at[index, '予備数'] = current_stock + 1
                         if update_data(sheet, df):
@@ -498,36 +629,105 @@ try:
     
     # タブ2: 買うものリスト
     with tab2:
+        # 単発追加フォーム
+        with st.form("manual_add", clear_on_submit=True):
+            st.markdown("### 📝 単発で追加")
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                manual_item = st.text_input("買うもの", placeholder="ティッシュ、シャンプーなど...", label_visibility="collapsed")
+            with col2:
+                add_manual = st.form_submit_button("追加", use_container_width=True)
+            
+            if add_manual and manual_item:
+                if manual_item not in st.session_state.manual_shopping_list:
+                    st.session_state.manual_shopping_list.append(manual_item)
+                    st.success(f"✓ {manual_item}を追加しました!")
+                    st.rerun()
+        
+        st.divider()
+        
+        # 在庫切れアイテム
         to_buy = df[df['予備数'] < df['補充しきい値']].copy()
         
-        if not to_buy.empty:
-            st.markdown(f"**{len(to_buy)}個のアイテム**を補充する必要があります")
+        # 残りわずかアイテム
+        low_stock_df = df[df['項目名'].isin(st.session_state.low_stock_items)]
+        
+        total_items_to_buy = len(to_buy) + len(low_stock_df) + len(st.session_state.manual_shopping_list)
+        
+        if total_items_to_buy > 0:
+            st.markdown(f'<h3 style="color: #1f2937;">買うものリスト ({total_items_to_buy}個)</h3>', unsafe_allow_html=True)
             
-            st.markdown("")
+            # 在庫切れ
+            if not to_buy.empty:
+                st.markdown('<h4 style="color: #1f2937;">📦 在庫切れ</h4>', unsafe_allow_html=True)
+                for idx, (index, row) in enumerate(to_buy.iterrows(), 1):
+                    shortage = int(row['補充しきい値']) - int(row['予備数'])
+                    icon = row.get('アイコン', '')
+                    
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        st.markdown(f"""
+                        <div class="shopping-item">
+                            <div class="shopping-item-name">{icon} {row['項目名']}</div>
+                            <div class="shopping-item-detail">現在 {row['予備数']}個 → あと{shortage}個必要</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        if st.button("✓", key=f"bought_{index}", use_container_width=True):
+                            df.at[index, '予備数'] = int(row['補充しきい値'])
+                            if update_data(sheet, df):
+                                st.success("✓")
+                                st.rerun()
             
-            for idx, (index, row) in enumerate(to_buy.iterrows(), 1):
-                shortage = int(row['補充しきい値']) - int(row['予備数'])
-                
-                col1, col2 = st.columns([4, 1])
-                
-                with col1:
-                    st.markdown(f"""
-                    <div class="shopping-item">
-                        <div class="shopping-item-name">{idx}. {row['項目名']}</div>
-                        <div class="shopping-item-detail">現在 {row['予備数']}個 → あと{shortage}個必要</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    if st.button("✓", key=f"bought_{index}", use_container_width=True):
-                        df.at[index, '予備数'] = int(row['補充しきい値'])
-                        if update_data(sheet, df):
-                            st.success("✓")
+            # 残りわずか
+            if not low_stock_df.empty:
+                st.markdown('<h4 style="color: #1f2937;">⚠️ 残りわずか</h4>', unsafe_allow_html=True)
+                for idx, (index, row) in enumerate(low_stock_df.iterrows(), 1):
+                    icon = row.get('アイコン', '')
+                    
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        st.markdown(f"""
+                        <div class="shopping-item">
+                            <div class="shopping-item-name">{icon} {row['項目名']}</div>
+                            <div class="shopping-item-detail">在庫: {row['予備数']}個</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        if st.button("削除", key=f"remove_low_{index}", use_container_width=True):
+                            st.session_state.low_stock_items.remove(row['項目名'])
+                            st.rerun()
+            
+            # 単発追加アイテム
+            if st.session_state.manual_shopping_list:
+                st.markdown('<h4 style="color: #1f2937;">📝 単発メモ</h4>', unsafe_allow_html=True)
+                for idx, item in enumerate(st.session_state.manual_shopping_list):
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        st.markdown(f"""
+                        <div class="manual-item">
+                            <div class="manual-item-name">📌 {item}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        if st.button("削除", key=f"remove_manual_{idx}", use_container_width=True):
+                            st.session_state.manual_shopping_list.remove(item)
                             st.rerun()
             
             # コピー用リスト
             with st.expander("📋 コピー用リスト"):
-                shopping_list = "\n".join([f"□ {row['項目名']}" for _, row in to_buy.iterrows()])
+                all_items = []
+                for _, row in to_buy.iterrows():
+                    all_items.append(f"□ {row['項目名']}")
+                for _, row in low_stock_df.iterrows():
+                    all_items.append(f"□ {row['項目名']}")
+                for item in st.session_state.manual_shopping_list:
+                    all_items.append(f"□ {item}")
+                
+                shopping_list = "\n".join(all_items)
                 st.text_area("", shopping_list, height=200, label_visibility="collapsed")
         else:
             st.success("🎉 すべての在庫が十分です!")
@@ -537,14 +737,9 @@ try:
         st.markdown('<h3 style="color: #1f2937;">📸 レシートを撮影して自動補充</h3>', unsafe_allow_html=True)
         st.info("レシートの写真をアップロードすると、購入した商品を自動で判別して在庫を補充します")
         
-        uploaded_file = st.file_uploader(
-            "レシートの写真を選択",
-            type=["jpg", "jpeg", "png"],
-            label_visibility="collapsed"
-        )
+        uploaded_file = st.file_uploader("レシートの写真を選択", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
         
         if uploaded_file is not None:
-            # 画像を表示
             col1, col2 = st.columns([1, 1])
             with col1:
                 st.image(uploaded_file, caption="アップロードされたレシート", use_container_width=True)
@@ -553,32 +748,24 @@ try:
                 st.markdown('<h4 style="color: #1f2937;">🔍 解析中...</h4>', unsafe_allow_html=True)
                 
                 with st.spinner("レシートを読み取っています..."):
-                    # 画像データを取得
                     image_bytes = uploaded_file.read()
-                    
-                    # Vision APIでテキスト検出
                     receipt_text = detect_text_from_image(image_bytes)
                     
                     if receipt_text:
                         st.success("✅ 読み取り完了!")
                         
-                        # デバッグ用(オプション)
                         with st.expander("📄 読み取ったテキスト"):
                             st.text(receipt_text)
                         
-                        # レシートから商品を抽出
                         detected_items = parse_receipt_text(receipt_text, df)
                         
                         if detected_items:
                             st.markdown('<h4 style="color: #1f2937;">検出された商品:</h4>', unsafe_allow_html=True)
                             
                             for item in detected_items:
-                                # あいまい検索でマッチする商品を探す
-                                # 1. 完全一致を探す
                                 exact_match = df[df['項目名'] == item['name']]
                                 
                                 if not exact_match.empty:
-                                    # 完全一致
                                     item_index = exact_match.index[0]
                                     col_a, col_b = st.columns([3, 1])
                                     
