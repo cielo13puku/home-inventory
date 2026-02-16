@@ -583,7 +583,7 @@ try:
                                     col_a, col_b = st.columns([3, 1])
                                     
                                     with col_a:
-                                        st.markdown(f"**{item['name']}** ({item['quantity']}個) ✓ 完全一致")
+                                        st.markdown(f'<div style="color: #1f2937;"><strong>{item["name"]}</strong> ({item["quantity"]}個) ✓ 完全一致</div>', unsafe_allow_html=True)
                                     
                                     with col_b:
                                         if st.button("追加", key=f"add_{item['name']}", use_container_width=True):
