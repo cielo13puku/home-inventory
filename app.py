@@ -511,6 +511,8 @@ try:
                             st.warning(f"⚠️ {item['name']} は登録されていません")
         else:
             st.markdown("""
+            <div style="color: #1f2937;">
+            
             ### 📱 使い方
             
             1. **レシートを撮影**してアップロード
@@ -521,7 +523,9 @@ try:
             - レシート全体が写るように撮影してください
             - 明るい場所で撮影するとより正確です
             - 商品名が在庫リストに登録されている必要があります
-            """)
+            
+            </div>
+            """, unsafe_allow_html=True)
 
 except Exception as e:
     st.error("エラーが発生しました")
