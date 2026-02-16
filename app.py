@@ -153,26 +153,6 @@ st.markdown("""
         font-weight: 600;
     }
     
-    /* プログレスバー */
-    .progress-bar {
-        width: 100%;
-        height: 6px;
-        background-color: #e5e7eb;
-        border-radius: 3px;
-        overflow: hidden;
-        margin-top: 0.3rem;
-    }
-    
-    .progress-fill {
-        height: 100%;
-        transition: width 0.3s ease;
-        border-radius: 3px;
-    }
-    
-    .progress-high { background: linear-gradient(90deg, #A8E6CF, #88D8B0); }
-    .progress-medium { background: linear-gradient(90deg, #FFD3B6, #FFAAA5); }
-    .progress-low { background: linear-gradient(90deg, #FFAAA5, #FF8B94); }
-    
     /* カラム間の余白を調整 */
     div[data-testid="column"] {
         padding: 0 0.25rem;
@@ -565,20 +545,6 @@ try:
                 category = row.get('カテゴリ', '')
                 expiry = row.get('賞味期限', '')
                 
-                # 在庫率を計算
-                if threshold > 0:
-                    stock_ratio = (current_stock / threshold) * 100
-                else:
-                    stock_ratio = 100
-                
-                # プログレスバーの色
-                if stock_ratio >= 100:
-                    progress_class = "progress-high"
-                elif stock_ratio >= 50:
-                    progress_class = "progress-medium"
-                else:
-                    progress_class = "progress-low"
-                
                 # 賞味期限チェック
                 expiry_status = check_expiry_status(expiry) if category == '食料品' else None
                 
@@ -597,15 +563,11 @@ try:
                     elif expiry_status == 'warning':
                         expiry_html = f'<div class="expiry-warning">期限まであと{(datetime.strptime(str(expiry), "%Y-%m-%d") - datetime.now()).days}日</div>'
                     
-                    # プログレスバーを含めて全部直接書く
                     st.markdown(f"""
                     <div class="item-row-inline">
                         <div class="item-name">{icon} {category_badge}{row['項目名']}</div>
                         <div class="item-stock">在庫: {current_stock}個 / 在庫下限: {threshold}個</div>
                         {expiry_html}
-                        <div class="progress-bar">
-                            <div class="progress-fill {progress_class}" style="width: {min(stock_ratio, 100)}%"></div>
-                        </div>
                     </div>
                     """, unsafe_allow_html=True)
                 
