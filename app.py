@@ -456,7 +456,7 @@ try:
     
     # タブ3: レシート読み取り
     with tab3:
-        st.markdown("### 📸 レシートを撮影して自動補充")
+        st.markdown('<h3 style="color: #1f2937;">📸 レシートを撮影して自動補充</h3>', unsafe_allow_html=True)
         st.info("レシートの写真をアップロードすると、購入した商品を自動で判別して在庫を補充します")
         
         uploaded_file = st.file_uploader(
@@ -490,15 +490,17 @@ try:
                     st.markdown("#### 検出された商品:")
                     
                     for item in detected_items:
-                        # マッチする商品を探す
-                        matched = df[df['項目名'].str.contains(item['name'], case=False, na=False)]
+                        # あいまい検索でマッチする商品を探す
+                        # 1. 完全一致を探す
+                        exact_match = df[df['項目名'] == item['name']]
                         
-                        if not matched.empty:
-                            item_index = matched.index[0]
+                        if not exact_match.empty:
+                            # 完全一致
+                            item_index = exact_match.index[0]
                             col_a, col_b = st.columns([3, 1])
                             
                             with col_a:
-                                st.markdown(f"**{item['name']}** ({item['quantity']}個)")
+                                st.markdown(f"**{item['name']}** ({item['quantity']}個) ✓ 完全一致")
                             
                             with col_b:
                                 if st.button("追加", key=f"add_{item['name']}", use_container_width=True):
@@ -508,7 +510,36 @@ try:
                                         st.success(f"✓ {item['name']}を追加しました!")
                                         st.rerun()
                         else:
-                            st.warning(f"⚠️ {item['name']} は登録されていません")
+                            # 2. 部分一致を探す(あいまい検索)
+                            partial_matches = df[df['項目名'].str.contains(item['name'], case=False, na=False)]
+                            
+                            if partial_matches.empty:
+                                # 逆パターン: 登録商品名がレシート商品名に含まれているか
+                                for idx, row in df.iterrows():
+                                    if row['項目名'] in item['name']:
+                                        partial_matches = df[df.index == idx]
+                                        break
+                            
+                            if not partial_matches.empty:
+                                # 候補が見つかった
+                                item_index = partial_matches.index[0]
+                                matched_name = partial_matches.iloc[0]['項目名']
+                                
+                                col_a, col_b = st.columns([3, 1])
+                                
+                                with col_a:
+                                    st.markdown(f"**{item['name']}** ({item['quantity']}個)")
+                                    st.caption(f"💡 もしかして「{matched_name}」?")
+                                
+                                with col_b:
+                                    if st.button("追加", key=f"add_{item['name']}", use_container_width=True):
+                                        current = int(df.at[item_index, '予備数'])
+                                        df.at[item_index, '予備数'] = current + item['quantity']
+                                        if update_data(sheet, df):
+                                            st.success(f"✓ {matched_name}を追加しました!")
+                                            st.rerun()
+                            else:
+                                st.warning(f"⚠️ {item['name']} に該当する商品が見つかりませんでした")
         else:
             st.markdown("""
             <div style="color: #1f2937;">
