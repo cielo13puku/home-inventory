@@ -185,8 +185,15 @@ st.markdown("""
         font-weight: 600;
         font-size: 0.85rem;
         padding: 0.5rem 1rem;
-        border: none;
+        border: 1px solid #d1d5db;
+        background-color: white !important;
+        color: #374151 !important;
         transition: all 0.2s;
+    }
+    
+    .stButton > button:hover {
+        background-color: #f9fafb !important;
+        border-color: #9ca3af;
     }
     
     .stButton > button:active {
