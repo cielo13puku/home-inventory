@@ -2,6 +2,9 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+from google.cloud import vision
+import io
+import base64
 
 # ページの設定
 st.set_page_config(
@@ -295,6 +298,81 @@ def update_data(sheet, df):
         st.error(f"更新エラー: {e}")
         return False
 
+# Vision API関数
+def detect_text_from_image(image_bytes):
+    """レシート画像からテキストを抽出"""
+    try:
+        # APIキーで認証
+        api_key = st.secrets["google_vision"]["api_key"]
+        
+        # Vision APIクライアントを作成(APIキー使用)
+        client = vision.ImageAnnotatorClient(
+            client_options={"api_key": api_key}
+        )
+        
+        # 画像を読み込む
+        image = vision.Image(content=image_bytes)
+        
+        # テキスト検出
+        response = client.text_detection(image=image)
+        texts = response.text_annotations
+        
+        if texts:
+            # 最初のアノテーションに全テキストが入っている
+            full_text = texts[0].description
+            return full_text
+        else:
+            return ""
+    except Exception as e:
+        st.error(f"Vision APIエラー: {e}")
+        return ""
+
+def parse_receipt_text(text, df):
+    """レシートのテキストから商品を抽出"""
+    detected_items = []
+    lines = text.split('\n')
+    
+    # 登録されている商品名のリスト
+    registered_items = df['項目名'].tolist()
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # 登録商品名が含まれているかチェック
+        for item_name in registered_items:
+            if item_name in line:
+                # 数量を探す(数字を探す)
+                import re
+                numbers = re.findall(r'\d+', line)
+                quantity = int(numbers[0]) if numbers else 1
+                
+                # 既に追加済みかチェック
+                if not any(d['name'] == item_name for d in detected_items):
+                    detected_items.append({
+                        'name': item_name,
+                        'quantity': quantity
+                    })
+                break
+        
+        # 部分一致も試す
+        for item_name in registered_items:
+            if any(char in line for char in item_name) and len(item_name) >= 2:
+                # すでに見つかっていない場合のみ
+                if not any(d['name'] == item_name for d in detected_items):
+                    import re
+                    numbers = re.findall(r'\d+', line)
+                    quantity = int(numbers[0]) if numbers else 1
+                    
+                    detected_items.append({
+                        'name': item_name,
+                        'quantity': quantity
+                    })
+                    break
+    
+    return detected_items
+
 # コンパクトなヘッダー
 st.markdown("""
 <div class="app-header">
@@ -472,74 +550,52 @@ try:
                 st.image(uploaded_file, caption="アップロードされたレシート", use_container_width=True)
             
             with col2:
-                st.markdown("#### 🔍 解析中...")
+                st.markdown('<h4 style="color: #1f2937;">🔍 解析中...</h4>', unsafe_allow_html=True)
                 
                 with st.spinner("レシートを読み取っています..."):
-                    # ここでAI解析を実行（後で実装）
-                    import time
-                    time.sleep(1)
+                    # 画像データを取得
+                    image_bytes = uploaded_file.read()
                     
-                    # デモ用の仮データ
-                    detected_items = [
-                        {"name": "醤油", "quantity": 1},
-                        {"name": "味噌", "quantity": 2},
-                    ]
+                    # Vision APIでテキスト検出
+                    receipt_text = detect_text_from_image(image_bytes)
                     
-                    st.success("✅ 読み取り完了!")
-                    
-                    st.markdown("#### 検出された商品:")
-                    
-                    for item in detected_items:
-                        # あいまい検索でマッチする商品を探す
-                        # 1. 完全一致を探す
-                        exact_match = df[df['項目名'] == item['name']]
+                    if receipt_text:
+                        st.success("✅ 読み取り完了!")
                         
-                        if not exact_match.empty:
-                            # 完全一致
-                            item_index = exact_match.index[0]
-                            col_a, col_b = st.columns([3, 1])
+                        # デバッグ用(オプション)
+                        with st.expander("📄 読み取ったテキスト"):
+                            st.text(receipt_text)
+                        
+                        # レシートから商品を抽出
+                        detected_items = parse_receipt_text(receipt_text, df)
+                        
+                        if detected_items:
+                            st.markdown('<h4 style="color: #1f2937;">検出された商品:</h4>', unsafe_allow_html=True)
                             
-                            with col_a:
-                                st.markdown(f"**{item['name']}** ({item['quantity']}個) ✓ 完全一致")
-                            
-                            with col_b:
-                                if st.button("追加", key=f"add_{item['name']}", use_container_width=True):
-                                    current = int(df.at[item_index, '予備数'])
-                                    df.at[item_index, '予備数'] = current + item['quantity']
-                                    if update_data(sheet, df):
-                                        st.success(f"✓ {item['name']}を追加しました!")
-                                        st.rerun()
+                            for item in detected_items:
+                                # あいまい検索でマッチする商品を探す
+                                # 1. 完全一致を探す
+                                exact_match = df[df['項目名'] == item['name']]
+                                
+                                if not exact_match.empty:
+                                    # 完全一致
+                                    item_index = exact_match.index[0]
+                                    col_a, col_b = st.columns([3, 1])
+                                    
+                                    with col_a:
+                                        st.markdown(f"**{item['name']}** ({item['quantity']}個) ✓ 完全一致")
+                                    
+                                    with col_b:
+                                        if st.button("追加", key=f"add_{item['name']}", use_container_width=True):
+                                            current = int(df.at[item_index, '予備数'])
+                                            df.at[item_index, '予備数'] = current + item['quantity']
+                                            if update_data(sheet, df):
+                                                st.success(f"✓ {item['name']}を追加しました!")
+                                                st.rerun()
                         else:
-                            # 2. 部分一致を探す(あいまい検索)
-                            partial_matches = df[df['項目名'].str.contains(item['name'], case=False, na=False)]
-                            
-                            if partial_matches.empty:
-                                # 逆パターン: 登録商品名がレシート商品名に含まれているか
-                                for idx, row in df.iterrows():
-                                    if row['項目名'] in item['name']:
-                                        partial_matches = df[df.index == idx]
-                                        break
-                            
-                            if not partial_matches.empty:
-                                # 候補が見つかった
-                                item_index = partial_matches.index[0]
-                                matched_name = partial_matches.iloc[0]['項目名']
-                                
-                                col_a, col_b = st.columns([3, 1])
-                                
-                                with col_a:
-                                    st.markdown(f"**{item['name']}** ({item['quantity']}個)")
-                                    st.caption(f"💡 もしかして「{matched_name}」?")
-                                
-                                with col_b:
-                                    if st.button("追加", key=f"add_{item['name']}", use_container_width=True):
-                                        current = int(df.at[item_index, '予備数'])
-                                        df.at[item_index, '予備数'] = current + item['quantity']
-                                        if update_data(sheet, df):
-                                            st.success(f"✓ {matched_name}を追加しました!")
-                                            st.rerun()
-                            else:
-                                st.warning(f"⚠️ {item['name']} に該当する商品が見つかりませんでした")
+                            st.warning("⚠️ 登録されている商品が見つかりませんでした")
+                    else:
+                        st.error("❌ テキストを読み取れませんでした。もう一度試してください。")
         else:
             st.markdown("""
             <div style="color: #1f2937;">
