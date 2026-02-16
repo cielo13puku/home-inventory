@@ -1,4 +1,5 @@
-   streamlit
-   gspread
-   pandas
-   oauth2client
+streamlit
+gspread
+pandas
+oauth2client
+google-cloud-vision
