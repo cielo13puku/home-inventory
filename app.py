@@ -13,6 +13,23 @@ st.set_page_config(
 # シンプルでスッキリしたCSS
 st.markdown("""
 <style>
+    /* Streamlitのヘッダーとフッターを非表示 */
+    header[data-testid="stHeader"] {
+        display: none;
+    }
+    
+    .stDeployButton {
+        display: none;
+    }
+    
+    footer {
+        display: none;
+    }
+    
+    #MainMenu {
+        display: none;
+    }
+    
     /* 全体の背景を白に */
     .stApp {
         background-color: #ffffff;
@@ -27,7 +44,7 @@ st.markdown("""
     /* コンパクトなヘッダー */
     .app-header {
         background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-        padding: 0.75rem 1rem;
+        padding: 0.9rem 1rem;
         border-radius: 10px;
         text-align: center;
         margin-bottom: 1rem;
@@ -36,17 +53,17 @@ st.markdown("""
     
     .app-title {
         color: white;
-        font-size: 0.75rem;
-        font-weight: 600;
+        font-size: 1.1rem;
+        font-weight: 700;
         margin: 0;
         letter-spacing: 0.3px;
     }
     
     .app-subtitle {
         color: rgba(255,255,255,0.9);
-        font-size: 0.75rem;
-        margin-top: 0.15rem;
-        font-weight: 600;
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+        font-weight: 500;
     }
     
     /* 統計カード */
@@ -282,40 +299,29 @@ try:
         st.warning("データが見つかりませんでした")
         st.stop()
     
-    # 統計情報
+    # 統計情報の計算
     total_items = len(df)
     critical_items = len(df[df['予備数'] == 0])
     warning_items = len(df[(df['予備数'] > 0) & (df['予備数'] < df['補充しきい値'])])
     ok_items = len(df[df['予備数'] >= df['補充しきい値']])
     
-    st.markdown('<div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem;">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown(f"""
+    # 統計情報 - 横並び
+    st.markdown(f"""
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.5rem;">
         <div class="stat-card">
             <div class="stat-value stat-ok">{ok_items}</div>
             <div class="stat-label">在庫OK</div>
         </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
         <div class="stat-card">
             <div class="stat-value stat-warning">{warning_items}</div>
             <div class="stat-label">要注意</div>
         </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
         <div class="stat-card">
             <div class="stat-value stat-danger">{critical_items}</div>
             <div class="stat-label">在庫切れ</div>
         </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
     
     # タブ
     tab1, tab2 = st.tabs(["📦 在庫一覧", "🛒 買い物リスト"])
