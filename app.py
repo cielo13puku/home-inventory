@@ -94,20 +94,17 @@ st.markdown("""
     .stat-danger { color: #ef4444; }
     
     /* アイテムカード - 横並びレイアウト */
-    .item-card {
+    .item-row {
         background: white;
         border-radius: 10px;
         padding: 0.85rem 1rem;
         margin-bottom: 0.6rem;
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         border: 1px solid #e5e7eb;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
     }
     
-    .item-left {
-        flex: 1;
+    .item-info {
+        margin-bottom: 0.5rem;
     }
     
     .item-name {
@@ -337,7 +334,7 @@ try:
     """, unsafe_allow_html=True)
     
     # タブ
-    tab1, tab2 = st.tabs(["📦 在庫一覧", "🛒 買うものリスト"])
+    tab1, tab2, tab3 = st.tabs(["📦 在庫一覧", "🛒 買うものリスト", "📸 レシート読み取り"])
     
     # タブ1: 在庫一覧
     with tab1:
@@ -389,26 +386,29 @@ try:
                 current_stock = int(row['予備数'])
                 threshold = int(row['補充しきい値'])
                 
-                # 横並びレイアウト
-                col1, col2, col3 = st.columns([3, 0.6, 0.6])
+                # 1カラムで横並びレイアウト
+                category_badge = f'<span style="background: #e5e7eb; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.65rem; color: #6b7280; margin-right: 0.3rem;">{row["カテゴリ"]}</span>' if row.get('カテゴリ', '') else ''
                 
-                with col1:
-                    category_badge = f'<span style="background: #e5e7eb; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.65rem; color: #6b7280; margin-right: 0.3rem;">{row["カテゴリ"]}</span>' if row.get('カテゴリ', '') else ''
-                    st.markdown(f"""
-                    <div class="item-card">
-                        <div class="item-left">
-                            <div class="item-name">{category_badge}{row['項目名']}</div>
-                            <div class="item-stock">在庫: {current_stock}個 / 在庫下限: {threshold}個</div>
-                        </div>
+                st.markdown(f"""
+                <div class="item-row">
+                    <div class="item-info">
+                        <div class="item-name">{category_badge}{row['項目名']}</div>
+                        <div class="item-stock">在庫: {current_stock}個 / 在庫下限: {threshold}個</div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    <div class="item-buttons" id="buttons_{index}">
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
+                # ボタンを最後の行に配置
+                col1, col2, col3 = st.columns([6, 1, 1])
+                with col1:
+                    st.write("")
                 with col2:
                     if st.button("➖", key=f"minus_{index}", use_container_width=True):
                         df.at[index, '予備数'] = max(0, current_stock - 1)
                         if update_data(sheet, df):
                             st.rerun()
-                
                 with col3:
                     if st.button("➕", key=f"plus_{index}", use_container_width=True):
                         df.at[index, '予備数'] = current_stock + 1
@@ -450,6 +450,75 @@ try:
                 st.text_area("", shopping_list, height=200, label_visibility="collapsed")
         else:
             st.success("🎉 すべての在庫が十分です!")
+    
+    # タブ3: レシート読み取り
+    with tab3:
+        st.markdown("### 📸 レシートを撮影して自動補充")
+        st.info("レシートの写真をアップロードすると、購入した商品を自動で判別して在庫を補充します")
+        
+        uploaded_file = st.file_uploader(
+            "レシートの写真を選択",
+            type=["jpg", "jpeg", "png"],
+            label_visibility="collapsed"
+        )
+        
+        if uploaded_file is not None:
+            # 画像を表示
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.image(uploaded_file, caption="アップロードされたレシート", use_container_width=True)
+            
+            with col2:
+                st.markdown("#### 🔍 解析中...")
+                
+                with st.spinner("レシートを読み取っています..."):
+                    # ここでAI解析を実行（後で実装）
+                    import time
+                    time.sleep(1)
+                    
+                    # デモ用の仮データ
+                    detected_items = [
+                        {"name": "醤油", "quantity": 1},
+                        {"name": "味噌", "quantity": 2},
+                    ]
+                    
+                    st.success("✅ 読み取り完了!")
+                    
+                    st.markdown("#### 検出された商品:")
+                    
+                    for item in detected_items:
+                        # マッチする商品を探す
+                        matched = df[df['項目名'].str.contains(item['name'], case=False, na=False)]
+                        
+                        if not matched.empty:
+                            item_index = matched.index[0]
+                            col_a, col_b = st.columns([3, 1])
+                            
+                            with col_a:
+                                st.markdown(f"**{item['name']}** ({item['quantity']}個)")
+                            
+                            with col_b:
+                                if st.button("追加", key=f"add_{item['name']}", use_container_width=True):
+                                    current = int(df.at[item_index, '予備数'])
+                                    df.at[item_index, '予備数'] = current + item['quantity']
+                                    if update_data(sheet, df):
+                                        st.success(f"✓ {item['name']}を追加しました!")
+                                        st.rerun()
+                        else:
+                            st.warning(f"⚠️ {item['name']} は登録されていません")
+        else:
+            st.markdown("""
+            ### 📱 使い方
+            
+            1. **レシートを撮影**してアップロード
+            2. **自動で商品名を検出**
+            3. **「追加」ボタン**で在庫を補充
+            
+            #### 💡 ヒント
+            - レシート全体が写るように撮影してください
+            - 明るい場所で撮影するとより正確です
+            - 商品名が在庫リストに登録されている必要があります
+            """)
 
 except Exception as e:
     st.error("エラーが発生しました")
