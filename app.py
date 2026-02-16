@@ -26,7 +26,7 @@ st.markdown("""
     
     /* コンパクトなヘッダー */
     .app-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
         padding: 0.75rem 1rem;
         border-radius: 10px;
         text-align: center;
@@ -36,16 +36,17 @@ st.markdown("""
     
     .app-title {
         color: white;
-        font-size: 1.1rem;
-        font-weight: 700;
+        font-size: 0.75rem;
+        font-weight: 600;
         margin: 0;
         letter-spacing: 0.3px;
     }
     
     .app-subtitle {
-        color: rgba(255,255,255,0.85);
-        font-size: 0.65rem;
+        color: rgba(255,255,255,0.9);
+        font-size: 0.75rem;
         margin-top: 0.15rem;
+        font-weight: 600;
     }
     
     /* 統計カード */
@@ -163,6 +164,14 @@ st.markdown("""
         font-weight: 600;
     }
     
+    .stRadio div[role="radiogroup"] label {
+        color: #1f2937 !important;
+    }
+    
+    .stRadio div[role="radiogroup"] label p {
+        color: #1f2937 !important;
+    }
+    
     /* 買い物リストアイテム */
     .shopping-item {
         background: #fef3c7;
@@ -228,6 +237,12 @@ def load_data(sheet):
     try:
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
+        
+        # カテゴリー列がない場合は空文字で埋める
+        if 'カテゴリ' not in df.columns:
+            df['カテゴリ'] = ''
+        
+        df['在庫数'] = pd.to_numeric(df['在庫数'], errors='coerce').fillna(0).astype(int)
         df['予備数'] = pd.to_numeric(df['予備数'], errors='coerce').fillna(0).astype(int)
         df['補充しきい値'] = pd.to_numeric(df['補充しきい値'], errors='coerce').fillna(0).astype(int)
         return df
@@ -272,7 +287,6 @@ try:
     critical_items = len(df[df['予備数'] == 0])
     warning_items = len(df[(df['予備数'] > 0) & (df['予備数'] < df['補充しきい値'])])
     ok_items = len(df[df['予備数'] >= df['補充しきい値']])
-    
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -305,19 +319,39 @@ try:
     # タブ1: 在庫一覧
     with tab1:
         # フィルター
-        filter_option = st.radio(
-            "表示",
-            ["すべて", "要補充のみ", "在庫OKのみ"],
-            horizontal=True,
-            label_visibility="collapsed"
-        )
+        col_filter1, col_filter2 = st.columns(2)
         
-        if filter_option == "要補充のみ":
-            display_df = df[df['予備数'] < df['補充しきい値']]
-        elif filter_option == "在庫OKのみ":
-            display_df = df[df['予備数'] >= df['補充しきい値']]
-        else:
-            display_df = df
+        with col_filter1:
+            # カテゴリーフィルター
+            categories = ['すべて'] + sorted(df['カテゴリ'].unique().tolist())
+            category_filter = st.selectbox(
+                "カテゴリー",
+                categories,
+                label_visibility="collapsed",
+                key="category_filter"
+            )
+        
+        with col_filter2:
+            # ステータスフィルター
+            filter_option = st.radio(
+                "表示",
+                ["すべて", "要補充", "在庫OK"],
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+        
+        # フィルター適用
+        display_df = df.copy()
+        
+        # カテゴリーフィルター
+        if category_filter != 'すべて':
+            display_df = display_df[display_df['カテゴリ'] == category_filter]
+        
+        # ステータスフィルター
+        if filter_option == "要補充":
+            display_df = display_df[display_df['予備数'] < display_df['補充しきい値']]
+        elif filter_option == "在庫OK":
+            display_df = display_df[display_df['予備数'] >= display_df['補充しきい値']]
         
         if display_df.empty:
             st.info("表示するアイテムがありません")
@@ -330,10 +364,11 @@ try:
                 col1, col2, col3 = st.columns([3, 0.6, 0.6])
                 
                 with col1:
+                    category_badge = f'<span style="background: #e5e7eb; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.65rem; color: #6b7280; margin-right: 0.3rem;">{row["カテゴリ"]}</span>' if row.get('カテゴリ', '') else ''
                     st.markdown(f"""
                     <div class="item-card">
                         <div class="item-left">
-                            <div class="item-name">{row['項目名']}</div>
+                            <div class="item-name">{category_badge}{row['項目名']}</div>
                             <div class="item-stock">在庫: {current_stock}個 / 在庫下限: {threshold}個</div>
                         </div>
                     </div>
