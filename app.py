@@ -263,8 +263,8 @@ def update_data(sheet, df):
 # コンパクトなヘッダー
 st.markdown("""
 <div class="app-header">
-    <h1 class="app-title">🏠 おうち在庫管理システム</h1>
-    <p class="app-subtitle">いつでも、どこでも、在庫チェック</p>
+    <div class="app-title">🏠 おうち在庫管理システム</div>
+    <div class="app-subtitle">いつでも、どこでも、在庫チェック</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -287,6 +287,8 @@ try:
     critical_items = len(df[df['予備数'] == 0])
     warning_items = len(df[(df['予備数'] > 0) & (df['予備数'] < df['補充しきい値'])])
     ok_items = len(df[df['予備数'] >= df['補充しきい値']])
+    
+    st.markdown('<div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem;">', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -312,6 +314,8 @@ try:
             <div class="stat-label">在庫切れ</div>
         </div>
         """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
     
     # タブ
     tab1, tab2 = st.tabs(["📦 在庫一覧", "🛒 買い物リスト"])
