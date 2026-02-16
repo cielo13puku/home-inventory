@@ -122,6 +122,19 @@ st.markdown("""
         color: #6b7280;
     }
     
+    /* 検索バー */
+    .stTextInput > div > div > input {
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #6b7280;
+        box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.1);
+    }
+    
     /* ボタン調整 */
     .stButton > button {
         border-radius: 6px;
@@ -324,11 +337,13 @@ try:
     """, unsafe_allow_html=True)
     
     # タブ
-    tab1, tab2 = st.tabs(["📦 在庫一覧", "🛒 買い物リスト"])
+    tab1, tab2 = st.tabs(["📦 在庫一覧", "🛒 買うものリスト"])
     
     # タブ1: 在庫一覧
     with tab1:
-        # フィルター
+        # 検索バーとフィルター
+        search_query = st.text_input("🔍 検索", placeholder="項目名で検索...", label_visibility="collapsed")
+        
         col_filter1, col_filter2 = st.columns(2)
         
         with col_filter1:
@@ -352,6 +367,10 @@ try:
         
         # フィルター適用
         display_df = df.copy()
+        
+        # 検索フィルター
+        if search_query:
+            display_df = display_df[display_df['項目名'].str.contains(search_query, case=False, na=False)]
         
         # カテゴリーフィルター
         if category_filter != 'すべて':
@@ -396,7 +415,7 @@ try:
                         if update_data(sheet, df):
                             st.rerun()
     
-    # タブ2: 買い物リスト
+    # タブ2: 買うものリスト
     with tab2:
         to_buy = df[df['予備数'] < df['補充しきい値']].copy()
         
@@ -431,7 +450,6 @@ try:
                 st.text_area("", shopping_list, height=200, label_visibility="collapsed")
         else:
             st.success("🎉 すべての在庫が十分です!")
-            st.balloons()
 
 except Exception as e:
     st.error("エラーが発生しました")
