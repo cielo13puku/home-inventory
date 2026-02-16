@@ -556,7 +556,7 @@ try:
                 expiry_status = check_expiry_status(expiry) if category == '食料品' else None
                 
                 # 横並びレイアウト
-                col1, col2, col3, col4 = st.columns([5, 1, 1, 1])
+                col1, col2, col3, col4 = st.columns([4, 1.2, 0.9, 0.9])
                 
                 with col1:
                     category_class = f"category-{category}" if category else ""
@@ -579,7 +579,7 @@ try:
                     """, unsafe_allow_html=True)
                 
                 with col2:
-                    if st.button("⚠️", key=f"low_{index}", use_container_width=True, help="残りわずか"):
+                    if st.button("残りわずか", key=f"low_{index}", use_container_width=True):
                         if row['項目名'] not in st.session_state.low_stock_items:
                             st.session_state.low_stock_items.append(row['項目名'])
                             st.success("買うものリストに追加!")
