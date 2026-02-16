@@ -94,17 +94,12 @@ st.markdown("""
     .stat-danger { color: #ef4444; }
     
     /* アイテムカード - 横並びレイアウト */
-    .item-row {
+    .item-row-inline {
         background: white;
         border-radius: 10px;
         padding: 0.85rem 1rem;
-        margin-bottom: 0.6rem;
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         border: 1px solid #e5e7eb;
-    }
-    
-    .item-info {
-        margin-bottom: 0.5rem;
     }
     
     .item-name {
@@ -117,6 +112,19 @@ st.markdown("""
     .item-stock {
         font-size: 0.7rem;
         color: #6b7280;
+    }
+    
+    /* カラム間の余白を調整 */
+    div[data-testid="column"] {
+        padding: 0 0.25rem;
+    }
+    
+    div[data-testid="column"]:first-child {
+        padding-left: 0;
+    }
+    
+    div[data-testid="column"]:last-child {
+        padding-right: 0;
     }
     
     /* 検索バー */
@@ -386,29 +394,24 @@ try:
                 current_stock = int(row['予備数'])
                 threshold = int(row['補充しきい値'])
                 
-                # 1カラムで横並びレイアウト
-                category_badge = f'<span style="background: #e5e7eb; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.65rem; color: #6b7280; margin-right: 0.3rem;">{row["カテゴリ"]}</span>' if row.get('カテゴリ', '') else ''
+                # 完全横並びレイアウト: 項目名 | ➖ | ➕
+                col1, col2, col3 = st.columns([5, 1, 1])
                 
-                st.markdown(f"""
-                <div class="item-row">
-                    <div class="item-info">
+                with col1:
+                    category_badge = f'<span style="background: #e5e7eb; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.65rem; color: #6b7280; margin-right: 0.3rem;">{row["カテゴリ"]}</span>' if row.get('カテゴリ', '') else ''
+                    st.markdown(f"""
+                    <div class="item-row-inline">
                         <div class="item-name">{category_badge}{row['項目名']}</div>
                         <div class="item-stock">在庫: {current_stock}個 / 在庫下限: {threshold}個</div>
                     </div>
-                    <div class="item-buttons" id="buttons_{index}">
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
                 
-                # ボタンを最後の行に配置
-                col1, col2, col3 = st.columns([6, 1, 1])
-                with col1:
-                    st.write("")
                 with col2:
                     if st.button("➖", key=f"minus_{index}", use_container_width=True):
                         df.at[index, '予備数'] = max(0, current_stock - 1)
                         if update_data(sheet, df):
                             st.rerun()
+                
                 with col3:
                     if st.button("➕", key=f"plus_{index}", use_container_width=True):
                         df.at[index, '予備数'] = current_stock + 1
