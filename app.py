@@ -10,154 +10,163 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# スタイリッシュなCSS
+# シンプルでスッキリしたCSS
 st.markdown("""
 <style>
+    /* 全体の背景を白に */
+    .stApp {
+        background-color: #ffffff;
+    }
+    
     /* 全体のフォント調整 */
     html, body, [class*="css"] {
         font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
         font-size: 14px;
     }
     
-    /* ヘッダー */
+    /* コンパクトなヘッダー */
     .app-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem 1rem;
-        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
         text-align: center;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
     .app-title {
         color: white;
-        font-size: 1.5rem;
+        font-size: 1.1rem;
         font-weight: 700;
         margin: 0;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
     }
     
     .app-subtitle {
-        color: rgba(255,255,255,0.9);
-        font-size: 0.75rem;
-        margin-top: 0.25rem;
+        color: rgba(255,255,255,0.85);
+        font-size: 0.65rem;
+        margin-top: 0.15rem;
     }
     
     /* 統計カード */
-    .stats-container {
-        display: flex;
-        gap: 0.75rem;
-        margin-bottom: 1.5rem;
-    }
-    
     .stat-card {
-        flex: 1;
         background: white;
-        padding: 1rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 0.75rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
         text-align: center;
+        border: 1px solid #e5e7eb;
     }
     
     .stat-value {
-        font-size: 1.75rem;
+        font-size: 1.5rem;
         font-weight: 700;
         margin: 0;
     }
     
     .stat-label {
-        font-size: 0.7rem;
-        color: #666;
-        margin-top: 0.25rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        font-size: 0.65rem;
+        color: #6b7280;
+        margin-top: 0.15rem;
+        font-weight: 500;
     }
     
     .stat-ok { color: #10b981; }
     .stat-warning { color: #f59e0b; }
     .stat-danger { color: #ef4444; }
     
-    /* アイテムカード */
+    /* アイテムカード - 横並びレイアウト */
     .item-card {
         background: white;
-        border-radius: 12px;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-        border-left: 4px solid #e5e7eb;
-        transition: all 0.2s;
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.6rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        border: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
     
-    .item-card:active {
-        transform: scale(0.98);
+    .item-left {
+        flex: 1;
     }
-    
-    .item-card.ok { border-left-color: #10b981; }
-    .item-card.warning { border-left-color: #f59e0b; }
-    .item-card.danger { border-left-color: #ef4444; }
     
     .item-name {
-        font-size: 1rem;
+        font-size: 0.95rem;
         font-weight: 600;
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.2rem;
         color: #1f2937;
     }
     
     .item-stock {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         color: #6b7280;
     }
     
     /* ボタン調整 */
     .stButton > button {
-        border-radius: 8px;
+        border-radius: 6px;
         font-weight: 600;
-        font-size: 0.85rem;
-        padding: 0.5rem 1rem;
-        border: none;
-        transition: all 0.2s;
+        font-size: 1rem;
+        padding: 0.4rem 0.8rem;
+        border: 1px solid #d1d5db;
+        background-color: white;
+        color: #374151;
+        transition: all 0.15s;
+        min-width: 40px;
+        height: 38px;
+    }
+    
+    .stButton > button:hover {
+        background-color: #f9fafb;
+        border-color: #9ca3af;
     }
     
     .stButton > button:active {
-        transform: scale(0.95);
+        transform: scale(0.96);
     }
     
-    /* タブ */
+    /* タブのスタイル改善 */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 0.5rem;
+        gap: 0.3rem;
         background: white;
-        border-radius: 10px;
-        padding: 0.5rem;
+        border-radius: 8px;
+        padding: 0.3rem;
         margin-bottom: 1rem;
+        border: 1px solid #e5e7eb;
     }
     
     .stTabs [data-baseweb="tab"] {
-        border-radius: 8px;
+        border-radius: 6px;
         font-size: 0.85rem;
         font-weight: 600;
         padding: 0.5rem 1rem;
+        color: #6b7280;
+    }
+    
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background-color: #667eea;
+        color: white;
     }
     
     /* 余白調整 */
     .block-container {
-        padding-top: 2rem;
+        padding-top: 1.5rem;
         padding-bottom: 2rem;
         max-width: 800px;
     }
     
-    /* メトリック */
-    [data-testid="stMetricValue"] {
-        font-size: 1.5rem;
-    }
-    
-    [data-testid="stMetricLabel"] {
-        font-size: 0.75rem;
+    /* ラジオボタン */
+    .stRadio > label {
+        font-size: 0.8rem;
+        font-weight: 600;
     }
     
     /* 買い物リストアイテム */
     .shopping-item {
         background: #fef3c7;
-        border-left: 4px solid #f59e0b;
+        border: 1px solid #fcd34d;
         padding: 0.75rem;
         border-radius: 8px;
         margin-bottom: 0.5rem;
@@ -170,9 +179,14 @@ st.markdown("""
     }
     
     .shopping-item-detail {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         color: #b45309;
-        margin-top: 0.25rem;
+        margin-top: 0.2rem;
+    }
+    
+    /* フィルターボタンのスタイル */
+    div[data-testid="stHorizontalBlock"] {
+        gap: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -231,7 +245,7 @@ def update_data(sheet, df):
         st.error(f"更新エラー: {e}")
         return False
 
-# ヘッダー
+# コンパクトなヘッダー
 st.markdown("""
 <div class="app-header">
     <h1 class="app-title">🏠 おうち在庫管理システム</h1>
@@ -312,44 +326,30 @@ try:
                 current_stock = int(row['予備数'])
                 threshold = int(row['補充しきい値'])
                 
-                # ステータス判定
-                if current_stock == 0:
-                    status = "danger"
-                    status_icon = "🚨"
-                    status_text = "在庫切れ"
-                elif current_stock < threshold:
-                    status = "warning"
-                    status_icon = "⚠️"
-                    status_text = "要補充"
-                else:
-                    status = "ok"
-                    status_icon = "✅"
-                    status_text = "OK"
-                
-                # カード
-                col1, col2 = st.columns([3, 1])
+                # 横並びレイアウト
+                col1, col2, col3 = st.columns([3, 0.6, 0.6])
                 
                 with col1:
                     st.markdown(f"""
-                    <div class="item-card {status}">
-                        <div class="item-name">{status_icon} {row['項目名']}</div>
-                        <div class="item-stock">在庫: {current_stock}個 / しきい値: {threshold}個</div>
+                    <div class="item-card">
+                        <div class="item-left">
+                            <div class="item-name">{row['項目名']}</div>
+                            <div class="item-stock">在庫: {current_stock}個 / 在庫下限: {threshold}個</div>
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
                 
                 with col2:
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        if st.button("➖", key=f"minus_{index}", use_container_width=True):
-                            df.at[index, '予備数'] = max(0, current_stock - 1)
-                            if update_data(sheet, df):
-                                st.rerun()
-                    
-                    with col_b:
-                        if st.button("➕", key=f"plus_{index}", use_container_width=True):
-                            df.at[index, '予備数'] = current_stock + 1
-                            if update_data(sheet, df):
-                                st.rerun()
+                    if st.button("➖", key=f"minus_{index}", use_container_width=True):
+                        df.at[index, '予備数'] = max(0, current_stock - 1)
+                        if update_data(sheet, df):
+                            st.rerun()
+                
+                with col3:
+                    if st.button("➕", key=f"plus_{index}", use_container_width=True):
+                        df.at[index, '予備数'] = current_stock + 1
+                        if update_data(sheet, df):
+                            st.rerun()
     
     # タブ2: 買い物リスト
     with tab2:
@@ -358,12 +358,12 @@ try:
         if not to_buy.empty:
             st.markdown(f"**{len(to_buy)}個のアイテム**を補充する必要があります")
             
-            st.markdown("---")
+            st.markdown("")
             
             for idx, (index, row) in enumerate(to_buy.iterrows(), 1):
                 shortage = int(row['補充しきい値']) - int(row['予備数'])
                 
-                col1, col2 = st.columns([3, 1])
+                col1, col2 = st.columns([4, 1])
                 
                 with col1:
                     st.markdown(f"""
